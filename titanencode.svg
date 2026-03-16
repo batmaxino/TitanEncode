@@ -1,0 +1,60 @@
+<svg width="256" height="256" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg_grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1c1c1c"/>
+      <stop offset="100%" stop-color="#2a2a2a"/>
+    </linearGradient>
+    <linearGradient id="flame_grad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#8b2500"/>
+      <stop offset="50%" stop-color="#ff6600"/>
+      <stop offset="100%" stop-color="#ffcc00"/>
+    </linearGradient>
+    <linearGradient id="reel_grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#333"/>
+      <stop offset="100%" stop-color="#222"/>
+    </linearGradient>
+  </defs>
+  <rect x="40" y="40" width="600" height="600" rx="120" fill="url(#bg_grad)"/>
+  <rect x="40" y="40" width="600" height="600" rx="120" fill="none" stroke="#ff8c00" stroke-width="6"/>
+  <circle cx="340" cy="320" r="200" fill="url(#reel_grad)" stroke="#444" stroke-width="3"/>
+  <g stroke="#3a3a3a" stroke-width="14" stroke-linecap="round">
+    <line x1="340" y1="155" x2="340" y2="205"/>
+    <line x1="340" y1="435" x2="340" y2="485"/>
+    <line x1="175" y1="320" x2="225" y2="320"/>
+    <line x1="455" y1="320" x2="505" y2="320"/>
+    <line x1="222" y1="207" x2="257" y2="242"/>
+    <line x1="423" y1="398" x2="458" y2="433"/>
+    <line x1="458" y1="207" x2="423" y2="242"/>
+    <line x1="257" y1="398" x2="222" y2="433"/>
+  </g>
+  <g stroke="#ff8c00" stroke-width="2" stroke-linecap="round" opacity="0.5">
+    <line x1="340" y1="155" x2="340" y2="205"/>
+    <line x1="340" y1="435" x2="340" y2="485"/>
+    <line x1="175" y1="320" x2="225" y2="320"/>
+    <line x1="455" y1="320" x2="505" y2="320"/>
+    <line x1="222" y1="207" x2="257" y2="242"/>
+    <line x1="423" y1="398" x2="458" y2="433"/>
+    <line x1="458" y1="207" x2="423" y2="242"/>
+    <line x1="257" y1="398" x2="222" y2="433"/>
+  </g>
+  <circle cx="340" cy="320" r="55" fill="#1c1c1c" stroke="#ff8c00" stroke-width="3"/>
+  <circle cx="340" cy="320" r="38" fill="#111" stroke="#444" stroke-width="2"/>
+  <circle cx="340" cy="320" r="10" fill="#ff8c00"/>
+  <g fill="#1c1c1c" stroke="#555" stroke-width="1.5">
+    <rect x="320" y="126" width="40" height="24" rx="5"/>
+    <rect x="320" y="490" width="40" height="24" rx="5"/>
+    <rect x="153" y="308" width="24" height="24" rx="5"/>
+    <rect x="503" y="308" width="24" height="24" rx="5"/>
+    <rect x="200" y="185" width="24" height="24" rx="5" transform="rotate(-45 212 197)"/>
+    <rect x="440" y="185" width="24" height="24" rx="5" transform="rotate(45 452 197)"/>
+    <rect x="200" y="420" width="24" height="24" rx="5" transform="rotate(45 212 432)"/>
+    <rect x="440" y="420" width="24" height="24" rx="5" transform="rotate(-45 452 432)"/>
+  </g>
+  <polygon points="330,305 330,335 358,320" fill="#ff8c00" opacity="0.9"/>
+  <g transform="translate(490, 110)">
+    <path d="M0,80 Q-10,50 5,35 Q0,55 15,45 Q5,25 20,0 Q35,20 30,40 Q45,25 40,50 Q55,35 50,60 Q55,70 45,80 Z" fill="url(#flame_grad)" opacity="0.9"/>
+  </g>
+  <text x="340" y="590" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="52" font-weight="900" fill="#ff8c00" letter-spacing="8">TITAN</text>
+  <text x="340" y="625" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="400" fill="#888" letter-spacing="12">ENCODE</text>
+  <line x1="200" y1="637" x2="480" y2="637" stroke="#ff8c00" stroke-width="1.5" opacity="0.4"/>
+</svg>
