@@ -1622,11 +1622,20 @@ class TitanEncode(QMainWindow):
             self.update_console(f"❌ {e}")
 
     def _leggi_hdr_ffprobe(self, fp):
+        """Legge metadati HDR dalla sorgente.
+        Se la sorgente è SDR disabilita automaticamente il checkbox HDR
+        per evitare errori FFmpeg (codice 234) durante l'encoding."""
         try:
             res = subprocess.check_output(
                 ["ffprobe","-v","quiet","-print_format","json","-show_streams","-select_streams","v:0",fp],
                 text=True, stderr=subprocess.DEVNULL)
             s = json.loads(res).get("streams",[{}])[0]
+
+            # Controlla se la sorgente è HDR verificando transfer characteristics
+            transfer = s.get("color_transfer","")
+            is_hdr = transfer in ("smpte2084","arib-std-b67","smpte428")
+
+            hdr_trovato = False
             for sd in s.get("side_data_list",[]):
                 if "Mastering" in sd.get("side_data_type",""):
                     def to_i(v, mul=50000):
@@ -1641,10 +1650,22 @@ class TitanEncode(QMainWindow):
                             f"L({to_i(sd.get('max_luminance'),10000)},{to_i(sd.get('min_luminance'),10000)})")
                     self.x_hdr_mdcv.setText(mdcv)
                     self.update_console(f"{self.T('hdr_found_mdcv')} {mdcv}")
+                    hdr_trovato = True
                 if "Content" in sd.get("side_data_type","") and "Light" in sd.get("side_data_type",""):
                     cll = f"{sd.get('max_content',0)},{sd.get('max_average',0)}"
                     self.x_hdr_cll.setText(cll)
                     self.update_console(f"{self.T('hdr_found_cll')} {cll}")
+
+            # Attiva/disattiva HDR passthrough in base alla sorgente
+            if hdr_trovato or is_hdr:
+                self.ck_hdr.setChecked(True)
+                self.update_console("   🎨 Sorgente HDR — Passthrough HDR10 attivato")
+            else:
+                self.ck_hdr.setChecked(False)
+                self.x_hdr_mdcv.setText("")
+                self.x_hdr_cll.setText("")
+                self.update_console("   ℹ️  Sorgente SDR — Passthrough HDR disattivato")
+
         except Exception: pass
 
     # ── OUTPUT DIR ───────────────────────────────────────────────────────────
