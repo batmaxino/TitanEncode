@@ -1034,6 +1034,7 @@ class TitanEncode(QMainWindow):
         self.output_dir   = ""
         self.in_corso     = False
         self._durata_sec  = 0.0
+        self._frame_totali = 0  # frame totali rilevati da ffprobe
         self._proc        = None
         self._lang        = "Italiano"
         self.signals      = Signals()
@@ -1602,7 +1603,7 @@ class TitanEncode(QMainWindow):
 
             self.btn_go.setEnabled(True)
 
-            # Durata
+            # Durata e frame totali
             res2 = subprocess.check_output(
                 ["ffprobe","-v","quiet","-print_format","json","-show_format",f],
                 text=True, stderr=subprocess.DEVNULL)
@@ -1613,6 +1614,28 @@ class TitanEncode(QMainWindow):
                 dur_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
             except Exception:
                 self._durata_sec = 0.0; dur_str = "?"
+
+            # Leggi frame totali da ffprobe per barra progresso affidabile
+            try:
+                res3 = subprocess.check_output(
+                    ["ffprobe","-v","quiet","-print_format","json",
+                     "-show_streams","-select_streams","v:0",f],
+                    text=True, stderr=subprocess.DEVNULL)
+                vs = json.loads(res3).get("streams",[{}])[0]
+                # Prova nb_frames prima, poi calcola da duration e fps
+                nb = vs.get("nb_frames","")
+                if nb and nb.isdigit():
+                    self._frame_totali = int(nb)
+                else:
+                    # Calcola da durata × fps
+                    fps_str = vs.get("r_frame_rate","24/1")
+                    num, den = fps_str.split("/")
+                    fps = float(num)/float(den)
+                    self._frame_totali = int(self._durata_sec * fps)
+                if self._frame_totali > 0:
+                    self.update_console(f"   Frame totali: {self._frame_totali:,}")
+            except Exception:
+                self._frame_totali = 0
 
             self.update_console(f"{self.T('file_loaded')} {f}")
             self.update_console(self.T("file_tracks").format(vid_c,aud_c,sub_c,dur_str))
@@ -1719,6 +1742,7 @@ class TitanEncode(QMainWindow):
         self.x_hdr_mdcv.setText("G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1)")
         self.x_hdr_cll.setText("1000,400")
         self._durata_sec = 0.0
+        self._frame_totali = 0
         self.update_console("🔄 RESET")
 
     # ── ENCODING ─────────────────────────────────────────────────────────────
@@ -1750,18 +1774,29 @@ class TitanEncode(QMainWindow):
         self.console.append(t)
         self.console.verticalScrollBar().setValue(self.console.verticalScrollBar().maximum())
 
-    def update_progresso(self, time_str):
-        if self._durata_sec <= 0: return
+    def update_progresso(self, val):
         try:
-            p = time_str.strip().split(":")
-            sec = float(p[0])*3600 + float(p[1])*60 + float(p[2])
-            pct = min(sec/self._durata_sec, 1.0)
-            self.bar.setValue(int(pct*1000))
-            rimasto = max(self._durata_sec - sec, 0)
-            rm, rs = divmod(int(rimasto),60); rh, rm = divmod(rm,60)
-            pos = time_str.split(".")[0]
-            tot = f"{int(self._durata_sec//3600):02d}:{int((self._durata_sec%3600)//60):02d}:{int(self._durata_sec%60):02d}"
-            self.lbl_progress.setText(f"⏱  {pos}  /  {tot}   —   ETA {rh:02d}:{rm:02d}:{rs:02d}")
+            if val.startswith("frame:") and self._frame_totali > 0:
+                # Progresso basato sui frame — affidabile su qualsiasi file
+                frame_cur = int(val.split(":")[1])
+                pct = min(frame_cur / self._frame_totali, 1.0)
+                self.bar.setValue(int(pct * 1000))
+                # Calcola tempo rimanente stimato
+                sec_fatti = self._durata_sec * pct
+                rimasto = max(self._durata_sec - sec_fatti, 0)
+                rm, rs = divmod(int(rimasto), 60); rh, rm = divmod(rm, 60)
+                hf = int(sec_fatti // 3600); mf = int((sec_fatti % 3600) // 60); sf = int(sec_fatti % 60)
+                tot = f"{int(self._durata_sec//3600):02d}:{int((self._durata_sec%3600)//60):02d}:{int(self._durata_sec%60):02d}"
+                self.lbl_progress.setText(
+                    f"⏱  {hf:02d}:{mf:02d}:{sf:02d}  /  {tot}"
+                    f"   —   {frame_cur:,} / {self._frame_totali:,} frame"
+                    f"   —   ETA {rh:02d}:{rm:02d}:{rs:02d}")
+            elif self._durata_sec > 0 and not val.startswith("frame:"):
+                # Fallback su time= se disponibile
+                p = val.strip().split(":")
+                sec = float(p[0])*3600 + float(p[1])*60 + float(p[2])
+                pct = min(sec/self._durata_sec, 1.0)
+                self.bar.setValue(int(pct*1000))
         except Exception: pass
 
     # ── MOTORE FFMPEG ─────────────────────────────────────────────────────────
@@ -1865,8 +1900,29 @@ class TitanEncode(QMainWindow):
                         "-x264-params",f"aq-mode={aq_mode}:psy-rd={psy:.2f},0.10"]
                 cmd += ["-pix_fmt","yuv420p"]
 
-            elif enc in ("hevc_vaapi","hevc_nvenc"):
-                cmd += ["-qp",str(int(rf))]
+            elif enc == "hevc_vaapi":
+                # VAAPI richiede: init dispositivo + upload filtro + formato
+                # Inserisci PRIMA di -i il dispositivo vaapi
+                cmd.insert(1, "-vaapi_device")
+                cmd.insert(2, "/dev/dri/renderD128")
+                # Aggiungi filtro hwupload prima dei filtri video
+                if vf:
+                    cmd = [c if c != vf else f"{vf},hwupload,format=vaapi" for c in cmd]
+                else:
+                    cmd += ["-vf", "hwupload,format=vaapi"]
+                cmd += ["-qp", str(int(rf))]
+                # VAAPI usa yuv420p per 8-bit o p010 per 10-bit
+                if bitdepth == "10-bit (HDR)":
+                    cmd += ["-pix_fmt", "p010le"]
+                else:
+                    cmd += ["-pix_fmt", "yuv420p"]
+
+            elif enc == "hevc_nvenc":
+                cmd += ["-qp", str(int(rf)), "-preset", "p4"]
+                if bitdepth == "10-bit (HDR)":
+                    cmd += ["-pix_fmt", "p010le"]
+                else:
+                    cmd += ["-pix_fmt", "yuv420p"]
 
             if fps: cmd += ["-r",fps]
             if color_range: cmd += ["-color_range",color_range]
@@ -1931,27 +1987,24 @@ class TitanEncode(QMainWindow):
             self._proc = subprocess.Popen(cmd,stderr=subprocess.STDOUT,
                                            stdout=subprocess.PIPE,text=True,bufsize=1)
 
-            _last_progress_line = ""
             for line in self._proc.stdout:
                 line = line.strip()
                 if not line: continue
-                if "time=" in line:
+                if "frame=" in line:
+                    # Usa i frame per il progresso — più affidabile del time=
                     try:
-                        tv = line.split("time=")[1].split()[0]
-                        if tv and tv[0].isdigit():
-                            self.signals.progresso.emit(tv)
+                        frame_val = line.split("frame=")[1].strip().split()[0]
+                        if frame_val.isdigit():
+                            self.signals.progresso.emit(f"frame:{frame_val}")
                     except Exception: pass
-                    # Aggiorna solo le righe frame= in console, non ogni secondo
-                    if "frame=" in line:
-                        self.signals.log.emit(line)
+                    self.signals.log.emit(line)
                 elif any(k in line for k in ("Error","error","Warning","warning")):
                     self.signals.log.emit(line)
 
             self._proc.wait()
             if self._proc.returncode == 0:
                 self.signals.log.emit(f"\n{self.T('encoding_done')} {out}")
-                self.signals.progresso.emit(
-                    f"{int(self._durata_sec//3600):02d}:{int((self._durata_sec%3600)//60):02d}:{int(self._durata_sec%60):02d}.00")
+                self.signals.progresso.emit(f"frame:{self._frame_totali}")
                 self.signals.fine.emit(True)
             else:
                 self.signals.log.emit(self.T("encoding_err").format(self._proc.returncode))
